@@ -1,4 +1,4 @@
-PAV - P2: detección de actividad vocal (VAD)
+PAV - P2: detección de actividad vocal (VAD) [MEMORIA DE LA PRACTICA ABAJO]
 ============================================
 
 Esta práctica se distribuye a través del repositorio GitHub [Práctica 2](https://github.com/albino-pav/P2),
@@ -203,3 +203,46 @@ Ejercicios
 Recuerde comprobar que el repositorio cuenta con los códigos correctos y en condiciones de ser 
 correctamente compilados con la orden `meson bin; ninja -C bin`. El programa generado (`bin/vad`) será
 el usado, sin más opciones, para realizar la evaluación *ciega* del sistema.
+
+##
+### MEMORIA PRACTICA PAV - P2: detección de actividad vocal 
+##
+Etiquetado manual de los segmentos de voz y silencio
+
+![Captura WaveSurfer](img/WavesurferFoto.png)
+
+A la vista de la gráfica y tras las pruebas empíricas realizadas con el código, considero adecuados los siguientes valores:
+
+ - Incremento del nivel potencia en dB: Un incremento de entre 2 dB y 3 dB respecto al nivel de silencio inicial es suficiente para discriminar la voz si se usa un sistema de histéresis (doble umbral). Si se exige un valor mucho mayor, se pierden los principios y finales de las palabras.
+
+ - Duración mínima razonable de los segmentos de voz y silencio: * Para la voz (inercia de subida / Hang-in): Unos 30 ms (3 tramas de 10 ms). Exigir menos hace que el sistema sea vulnerable a ruidos impulsivos (clicks).
+
+ - Para el silencio (inercia de bajada / Hang-over): Unos 100 ms (10 tramas). Esta duración permite "puentear" las breves pausas oclusivas (como la pausa antes de soltar una "P" o una "T") sin cortar prematuramente la detección de voz.
+
+ - Conclusión sobre la evolución de la tasa de cruces por cero (ZCR): La tasa de cruces por cero es vital para complementar a la potencia. Los fonemas fricativos sordos (como la /s/ o la /f/) tienen una potencia bajísima, casi a nivel del ruido de fondo, pero generan picos muy altos en la ZCR debido a su alta frecuencia. Sin la ZCR, estos fonemas se clasificarían erróneamente como silencio.
+
+## Desarrollo del detector de actividad vocal
+
+Comparativa entre el etiquetado manual y la salida automática del VAD.
+Discrepancias entre etiquetado manual y automático: Las principales discrepancias suelen darse en las fronteras de las palabras. El etiquetado manual a menudo incluye el sonido de la respiración (inhalaciones previas a hablar) o deja un "colchón" de silencio visual por error humano. El detector automático, al regirse por umbrales matemáticos estrictos de energía y ZCR, ajusta el corte de forma mucho más ceñida a la fonética real. Además, los suspiros o exhalaciones suaves al final de una frase a veces son cortados por el algoritmo al caer por debajo del umbral de ruido adaptativo.
+
+
+Evaluación de los resultados sobre la base de datos db.v4:
+Los resultados obtenidos mediante el script vad_evaluation.pl con el código definitivo son los siguientes:
+
+***************** Summary *****************
+Recall V:568.17/590.75 96.18%   Precision V:568.17/630.38 90.13%   F-score V (2)  : 94.91%
+Recall S:314.05/376.26 83.47%   Precision S:314.05/336.62 93.29%   F-score S (1/2): 91.15%
+===> TOTAL: 93.007%
+
+## Contribuciones adicionales y/o comentarios acerca de la práctica
+
+Para conseguir un F-Score Total superior al 93%, se ha reescrito la máquina de estados y se han implementado múltiples mejoras combinadas respecto al diseño base propuesto:
+
+ - Integración de ZCR condicionado a Suelo de Ruido: Se ha añadido la Tasa de Cruces por Cero (ZCR) como condición de actividad (||) para no perder consonantes fricativas. Para evitar que el ruido de cuantización o el ruido eléctrico en silencios profundos dispare el ZCR, se ha añadido una restricción: el ZCR solo es válido si la potencia del frame no cae por debajo de la potencia del ruido base (ZCR_NOISE_FLOOR_MARGIN = 0.0F).
+ - Histéresis (Doble Umbral): Se ha diseñado una lógica de Schmitt Trigger. Se exige un umbral riguroso de potencia para transicionar de Silencio a Voz (thresh_p_on), pero se utiliza un umbral 2 dB más permisivo (HYSTERESIS_DB = 2.0F) para transicionar de Voz a Silencio (thresh_p_off). Esto evita el efecto de "tartamudeo" del VAD durante pequeñas caídas de energía.
+ - Actualización Dinámica del Ruido (Background Noise Tracking): En lugar de fijar el ruido únicamente con las tramas iniciales (INIT_FRAMES), el sistema actualiza de forma progresiva el ruido de fondo (Potencia, ZCR y AM) cada vez que está firmemente en el estado ST_SILENCE, utilizando una tasa de olvido del 1% (NOISE_UPDATE_RATE = 0.01F). Esto permite al VAD adaptarse a grabaciones donde el entorno o el nivel de estática cambian con el tiempo.
+
+ - Inclusión de la Magnitud de Amplitud (AM): Se ha incorporado también la energía AM calculada, empleando sus propios umbrales dinámicos (MULTIPLIER_AM = 5.0F), logrando mayor robustez ante fluctuaciones no lineales de la potencia.
+
+	
