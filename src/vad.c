@@ -16,7 +16,7 @@ const unsigned int HANG_IN = 3;
 const unsigned int HANG_OVER = 10;  
 
 
-const float ALPHA_ZCR = 2000.0F;
+const float ALPHA_ZCR = 4500.0F;
 const float MULTIPLIER_AM = 5.0F;
 
 
